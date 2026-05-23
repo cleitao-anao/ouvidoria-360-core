@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # O serviço da sua aplicação web Next.js
+  web:
+    build: .                 # Indica que o Docker deve usar o Dockerfile da pasta atual
+    container_name: ouvidoria_web
+    ports:
+      - "3000:3000"          # Roteia a porta 3000 do seu PC para a porta 3000 do contêiner
+    volumes:
+      - .:/src/app               # Sincroniza seu código local com o contêiner (mudou no PC, muda no Docker)
+      - /src/app/node_modules    # Impede que o contêiner sobrescreva as dependências instaladas lá dentro
+    environment:
+      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/ouvidoria?schema=public
+    depends_on:
+      - db                   # Garante que o banco de dados vai ligar ANTES da aplicação web
+
+  # O serviço do banco de dados (PostgreSQL)
+  db:
+    image: postgres:15-alpine # Usa a imagem oficial e leve do Postgres
+    container_name: ouvidoria_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: ouvidoria
+    ports:
+      - "5432:5432"          # Permite que você acesse o banco pelo seu PC se quiser usar um DBeaver ou TablePlus
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Volume persistente: seus dados não somem ao desligar o Docker
+
+# Declaração do volume que guarda os dados do banco
+volumes:
+  postgres_data:
