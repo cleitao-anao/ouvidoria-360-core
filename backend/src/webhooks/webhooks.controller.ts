@@ -1,5 +1,5 @@
 import { Controller, Post, Req, Res, Headers, HttpStatus } from '@nestjs/common';
-// Importação de tipo para satisfazer o 'isolatedModules: true' do seu tsconfig
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiQuery } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import * as https from 'https';
 import { lastValueFrom } from 'rxjs';
 
+@ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   constructor(
@@ -16,6 +17,17 @@ export class WebhooksController {
 
   // --- WEBHOOK DO GITHUB ---
   @Post('github')
+  @ApiOperation({ 
+    summary: 'Recebe eventos do GitHub', 
+    description: 'Valida a assinatura HMAC-SHA256 enviada pelo GitHub e encaminha a notificação para o canal de atualizações.' 
+  })
+  @ApiHeader({
+    name: 'x-hub-signature-256',
+    description: 'Assinatura de segurança gerada pelo GitHub usando a Secret configurada.',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'Notificação enviada ao Discord com sucesso.' })
+  @ApiResponse({ status: 401, description: 'Assinatura inválida (Unauthorized).' })
   async handleGitHub(
     @Req() req: Request, 
     @Res() res: Response, 
@@ -26,7 +38,6 @@ export class WebhooksController {
     const hmac = crypto.createHmac('sha256', secret || '');
     const digest = 'sha256=' + hmac.update(payload).digest('hex');
 
-    // Validação de Segurança
     if (signature !== digest) {
       console.warn('⚠️ Tentativa de acesso não autorizada no Webhook do GitHub');
       return res.status(HttpStatus.UNAUTHORIZED).send('Erro: Assinatura inválida');
@@ -36,7 +47,6 @@ export class WebhooksController {
     const action = req.body.action || 'push/evento';
     const sender = req.body.sender?.login || 'alguém';
 
-    // Monta a mensagem para o Discord
     const message = `🚀 **GitHub Update**\n🔹 Repo: \`${repo}\`\n🔹 Ação: \`${action}\` por **${sender}**`;
 
     await this.sendToDiscord(message, 'DISCORD_GITHUB_WEB_URL');
@@ -46,11 +56,21 @@ export class WebhooksController {
 
   // --- WEBHOOK DO JIRA ---
   @Post('jira')
+  @ApiOperation({ 
+    summary: 'Recebe eventos do Jira', 
+    description: 'Recebe atualizações de tarefas dos quadros BR e DEV via token de segurança.' 
+  })
+  @ApiQuery({
+    name: 'token',
+    description: 'Chave mestra definida no arquivo .env para autorizar o Jira.',
+    required: true,
+  })
+  @ApiResponse({ status: 200, description: 'Notificação enviada ao Discord com sucesso.' })
+  @ApiResponse({ status: 401, description: 'Token inválido.' })
   async handleJira(@Req() req: Request, @Res() res: Response) {
     const token = req.query.token;
     const validToken = this.configService.get<string>('JIRA_WEBHOOK_TOKEN');
 
-    // Validação de Segurança via Query Param
     if (token !== validToken) {
       console.warn('⚠️ Tentativa de acesso não autorizada no Webhook do Jira');
       return res.status(HttpStatus.UNAUTHORIZED).send('Erro: Token inválido');
@@ -60,7 +80,6 @@ export class WebhooksController {
     const summary = req.body.issue?.fields?.summary || 'Sem título';
     const event = req.body.webhookEvent?.replace('jira:', '') || 'updated';
 
-    // Monta a mensagem para o Discord
     const message = `📋 **Jira Board**\n🔹 Tarefa: **${issueKey}**\n🔹 Evento: \`${event}\`\n🔹 Resumo: _${summary}_`;
 
     await this.sendToDiscord(message, 'DISCORD_JIRA_WEB_URL');
@@ -68,7 +87,6 @@ export class WebhooksController {
     return res.status(HttpStatus.OK).send('Jira OK');
   }
 
-  // --- FUNÇÃO AUXILIAR PARA ENVIO AO DISCORD ---
   private async sendToDiscord(content: string, envKey: string) {
     const webhookUrl = this.configService.get<string>(envKey);
 
