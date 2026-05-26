@@ -1,0 +1,47 @@
+name: Ouvidoria 360 - CI (Integração Contínua)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  verificacao-de-codigo:
+    # Cria uma máquina virtual limpa com a última versão do Ubuntu
+    runs-on: ubuntu-latest
+
+    # Passo a passo que a máquina vai executar
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm' # Salva as bibliotecas em cache para rodar muito mais rápido na próxima vez!
+
+      - name: 📦 Instalar dependências do backend
+        run: npm ci --prefix backend
+
+      - name: 📦 Instalar dependências do frontend
+        run: npm ci --prefix frontend
+
+      - name: 🔍 Rodar o Linter do backend
+        run: npm --prefix backend run lint
+
+      - name: 🔍 Rodar o Linter do frontend
+        run: npm --prefix frontend run lint
+
+      - name: 🧪 Rodar os Testes do backend
+        run: npm --prefix backend run test -- --watchAll=false
+
+      - name: 🧪 Rodar os Testes do frontend
+        run: npm --prefix frontend run test -- --watchAll=false
+
+      - name: 🏗️ Testar o Build do backend
+        run: npm --prefix backend run build
+
+      - name: 🏗️ Testar o Build do frontend
+        run: npm --prefix frontend run build
