@@ -1,11 +1,45 @@
-import { Controller, Post, Req, Res, Headers, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Req,
+  Res,
+  Headers,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiHeader,
+  ApiQuery,
+} from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as https from 'https';
 import { lastValueFrom } from 'rxjs';
+
+// --- INTERFACES PARA TIPAGEM ---
+interface GitHubWebhookPayload {
+  repository?: {
+    name?: string;
+  };
+  action?: string;
+  sender?: {
+    login?: string;
+  };
+}
+
+interface JiraWebhookPayload {
+  issue?: {
+    key?: string;
+    fields?: {
+      summary?: string;
+    };
+  };
+  webhookEvent?: string;
+}
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
@@ -17,21 +51,29 @@ export class WebhooksController {
 
   // --- WEBHOOK DO GITHUB ---
   @Post('github')
-  @ApiOperation({ 
-    summary: 'Recebe eventos do GitHub', 
-    description: 'Valida a assinatura HMAC-SHA256 enviada pelo GitHub e encaminha a notificação para o canal de atualizações.' 
+  @ApiOperation({
+    summary: 'Recebe eventos do GitHub',
+    description:
+      'Valida a assinatura HMAC-SHA256 enviada pelo GitHub e encaminha a notificação para o canal de atualizações.',
   })
   @ApiHeader({
     name: 'x-hub-signature-256',
-    description: 'Assinatura de segurança gerada pelo GitHub usando a Secret configurada.',
+    description:
+      'Assinatura de segurança gerada pelo GitHub usando a Secret configurada.',
     required: true,
   })
-  @ApiResponse({ status: 200, description: 'Notificação enviada ao Discord com sucesso.' })
-  @ApiResponse({ status: 401, description: 'Assinatura inválida (Unauthorized).' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notificação enviada ao Discord com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Assinatura inválida (Unauthorized).',
+  })
   async handleGitHub(
-    @Req() req: Request, 
-    @Res() res: Response, 
-    @Headers('x-hub-signature-256') signature: string
+    @Req() req: Request,
+    @Res() res: Response,
+    @Headers('x-hub-signature-256') signature: string,
   ) {
     const secret = this.configService.get<string>('GITHUB_WEBHOOK_SECRET');
     const payload = JSON.stringify(req.body);
@@ -39,13 +81,18 @@ export class WebhooksController {
     const digest = 'sha256=' + hmac.update(payload).digest('hex');
 
     if (signature !== digest) {
-      console.warn('⚠️ Tentativa de acesso não autorizada no Webhook do GitHub');
-      return res.status(HttpStatus.UNAUTHORIZED).send('Erro: Assinatura inválida');
+      console.warn(
+        '⚠️ Tentativa de acesso não autorizada no Webhook do GitHub',
+      );
+      return res
+        .status(HttpStatus.UNAUTHORIZED)
+        .send('Erro: Assinatura inválida');
     }
 
-    const repo = req.body.repository?.name || 'Repositório desconhecido';
-    const action = req.body.action || 'push/evento';
-    const sender = req.body.sender?.login || 'alguém';
+    const body = req.body as GitHubWebhookPayload;
+    const repo = body.repository?.name || 'Repositório desconhecido';
+    const action = body.action || 'push/evento';
+    const sender = body.sender?.login || 'alguém';
 
     const message = `🚀 **GitHub Update**\n🔹 Repo: \`${repo}\`\n🔹 Ação: \`${action}\` por **${sender}**`;
 
@@ -56,16 +103,20 @@ export class WebhooksController {
 
   // --- WEBHOOK DO JIRA ---
   @Post('jira')
-  @ApiOperation({ 
-    summary: 'Recebe eventos do Jira', 
-    description: 'Recebe atualizações de tarefas dos quadros BR e DEV via token de segurança.' 
+  @ApiOperation({
+    summary: 'Recebe eventos do Jira',
+    description:
+      'Recebe atualizações de tarefas dos quadros BR e DEV via token de segurança.',
   })
   @ApiQuery({
     name: 'token',
     description: 'Chave mestra definida no arquivo .env para autorizar o Jira.',
     required: true,
   })
-  @ApiResponse({ status: 200, description: 'Notificação enviada ao Discord com sucesso.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notificação enviada ao Discord com sucesso.',
+  })
   @ApiResponse({ status: 401, description: 'Token inválido.' })
   async handleJira(@Req() req: Request, @Res() res: Response) {
     const token = req.query.token;
@@ -76,9 +127,10 @@ export class WebhooksController {
       return res.status(HttpStatus.UNAUTHORIZED).send('Erro: Token inválido');
     }
 
-    const issueKey = req.body.issue?.key || 'Tarefa';
-    const summary = req.body.issue?.fields?.summary || 'Sem título';
-    const event = req.body.webhookEvent?.replace('jira:', '') || 'updated';
+    const body = req.body as JiraWebhookPayload;
+    const issueKey = body.issue?.key || 'Tarefa';
+    const summary = body.issue?.fields?.summary || 'Sem título';
+    const event = body.webhookEvent?.replace('jira:', '') || 'updated';
 
     const message = `📋 **Jira Board**\n🔹 Tarefa: **${issueKey}**\n🔹 Evento: \`${event}\`\n🔹 Resumo: _${summary}_`;
 
@@ -91,7 +143,9 @@ export class WebhooksController {
     const webhookUrl = this.configService.get<string>(envKey);
 
     if (!webhookUrl) {
-      console.error(`❌ Erro: URL do Discord não encontrada para a chave ${envKey} no .env`);
+      console.error(
+        `❌ Erro: URL do Discord não encontrada para a chave ${envKey} no .env`,
+      );
       return;
     }
 
@@ -105,9 +159,16 @@ export class WebhooksController {
           },
         ),
       );
-      console.log(`✅ Mensagem enviada com sucesso para o canal vinculado a ${envKey}`);
-    } catch (err: any) {
-      console.error(`❌ Falha ao enviar para o Discord (${envKey}):`, err.message);
+      console.log(
+        `✅ Mensagem enviada com sucesso para o canal vinculado a ${envKey}`,
+      );
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error(
+        `❌ Falha ao enviar para o Discord (${envKey}):`,
+        errorMessage,
+      );
     }
   }
 }
