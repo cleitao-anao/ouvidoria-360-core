@@ -10,8 +10,10 @@ describe('AppController (e2e)', () => {
 
   beforeEach(async () => {
     // define valores padrão de ambiente antes de criar o módulo
-    process.env.GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET ?? 'test_github_secret';
-    process.env.JIRA_WEBHOOK_TOKEN = process.env.JIRA_WEBHOOK_TOKEN ?? 'test_jira_token';
+    process.env.GITHUB_WEBHOOK_SECRET =
+      process.env.GITHUB_WEBHOOK_SECRET ?? 'test_github_secret';
+    process.env.JIRA_WEBHOOK_TOKEN =
+      process.env.JIRA_WEBHOOK_TOKEN ?? 'test_jira_token';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],

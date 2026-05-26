@@ -2,16 +2,13 @@ name: Ouvidoria 360 - CI (Integração Contínua)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
 
 jobs:
-  verificacao-de-codigo:
-    # Cria uma máquina virtual limpa com a última versão do Ubuntu
+  backend-lint:
     runs-on: ubuntu-latest
-
-    # Passo a passo que a máquina vai executar
     steps:
       - name: 📥 Clonar o código do repositório
         uses: actions/checkout@v4
@@ -20,16 +17,94 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm' # Salva as bibliotecas em cache para rodar muito mais rápido na próxima vez!
 
-      - name: 📦 Instalar dependências
-        run: npm ci
+      - name: 📦 Instalar dependências do backend
+        run: npm install --prefix backend
 
-      - name: 🔍 Rodar o Linter (Busca erros de sintaxe e más práticas)
-        run: npm run lint
+      - name: 🔍 Rodar o Linter do backend
+        run: npm --prefix backend run lint
 
-      - name: 🧪 Rodar os Testes (Garantir que tudo funciona como esperado)
-        run: npm test -- --watchAll=false
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
 
-      - name: 🏗️ Testar o Build (Garantir que a aplicação compila para produção)
-        run: npm run build
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar dependências do frontend
+        run: npm install --prefix frontend
+
+      - name: 🔍 Rodar o Linter do frontend
+        run: npm --prefix frontend run lint
+
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar dependências do backend
+        run: npm install --prefix backend
+
+      - name: 🧪 Rodar os Testes do backend
+        run: npm --prefix backend run test -- --watchAll=false
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar dependências do frontend
+        run: npm install --prefix frontend
+
+      - name: 🧪 Rodar os Testes do frontend
+        run: npm --prefix frontend run test -- --watchAll=false
+
+  backend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar dependências do backend
+        run: npm install --prefix backend
+
+      - name: 🏗️ Testar o Build do backend
+        run: npm --prefix backend run build
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar dependências do frontend
+        run: npm install --prefix frontend
+
+      - name: 🏗️ Testar o Build do frontend
+        run: npm --prefix frontend run build
